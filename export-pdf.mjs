@@ -78,24 +78,22 @@ for (let i = 0; i < total; i++) {
 await browser.close();
 console.log(`\nAll ${total} slides captured. Building PDF with Python…`);
 
-// Python Pillow: stitch PNGs → PDF
+// Python img2pdf: stitch PNGs → PDF (img2pdf preserves lossless quality)
 const pyScript = `
-from PIL import Image
+import img2pdf, os, glob, sys, shutil
 
-files = ${JSON.stringify(frames).replace(/\\\\/g, '\\\\\\\\')}
-images = [Image.open(f).convert('RGB') for f in files]
-out = r"${PDF_OUT.replace(/\\/g, '\\\\')}"
-images[0].save(out, save_all=True, append_images=images[1:], resolution=150)
-print(f"Saved {len(images)}-page PDF → {out}")
+files = ${JSON.stringify(frames)}
+out   = r"${PDF_OUT.replace(/\\/g, '\\\\')}"
+
+with open(out, "wb") as f:
+    f.write(img2pdf.convert(files))
+
+sys.stdout.write("Saved %d-page PDF: %s (%d KB)\\n" % (len(files), out, os.path.getsize(out)//1024))
+shutil.rmtree(r"${OUT_DIR.replace(/\\/g, '\\\\')}", ignore_errors=True)
 `;
 
 const pyFile = path.join(OUT_DIR, 'stitch.py');
 fs.writeFileSync(pyFile, pyScript);
 execSync(`python "${pyFile}"`, { stdio: 'inherit' });
-
-// Clean up
-frames.forEach(f => fs.unlinkSync(f));
-fs.unlinkSync(pyFile);
-fs.rmdirSync(OUT_DIR);
 
 console.log('Done! →', PDF_OUT);
